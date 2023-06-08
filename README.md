@@ -9,12 +9,13 @@ For anyone who wants a jump start, I'm using the following commands to get the f
 Dropbox fetch:
 
 ```
-cd ~ && wget -O - "https://www.dropbox.com/download?plat=lnx.x86_64" | tar xzf -~/.dropbox-dist/dropboxd
+cd ~ && wget -O - "https://www.dropbox.com/download?plat=lnx.x86_64" | tar xzf -
+~/.dropbox-dist/dropboxd
 ```
 
 Take a folder and tar it up, then upload to S3:
 
 ```
 tar -czvf <folder-name>.tgz <folder-name>
-aws s3 cp <folder-name>.tgz s3://<bucket-name> --storage-class "DEEP_ARCHIVE"
+aws s3 sync <folder-name>.tgz s3://<bucket-name> --storage-class "DEEP_ARCHIVE"
 ```

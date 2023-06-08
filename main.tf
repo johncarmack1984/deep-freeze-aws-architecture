@@ -1,6 +1,6 @@
 terraform {
   cloud {
-    organization = var.organization_name
+    organization = "john-carmack"
     workspaces {
       name = "learn-tfc-aws"
     }
@@ -27,3 +27,8 @@ resource "aws_instance" "app_server" {
     Name = var.instance_name
   }
 }
+
+# module "ec2-instance_example_volume-attachment" {
+#   source  = "terraform-aws-modules/ec2-instance/aws//examples/volume-attachment"
+#   version = "5.1.0"
+# }
