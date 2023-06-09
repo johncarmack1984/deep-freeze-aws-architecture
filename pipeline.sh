@@ -80,3 +80,4 @@ done
 
 # tar -czvf <folder-name>.tgz <folder-name>
 # aws s3 cp brand.tgz s3://vegify-dropbox-archive --storage-class "DEEP_ARCHIVE"
+# aws s3 sync ./brand s3://vegify-dropbox-archive/brand --storage-class "DEEP_ARCHIVE"

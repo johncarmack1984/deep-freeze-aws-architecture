@@ -1,5 +1,29 @@
+variable "aws_config" {
+  type = object({
+    region      = string
+    bucket      = string
+    volume_size = number
+  })
+}
+
+terraform {
+  cloud {
+    organization = "john-carmack"
+    workspaces {
+      name = "migrate-to-s3-deep-storage-for-business"
+    }
+  }
+  required_version = ">= 0.12"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 2.0"
+    }
+  }
+}
+
 provider "aws" {
-  region = "us-west-1"
+  region = var.aws_config.region
 }
 
 resource "aws_iam_role" "s3_role" {
@@ -36,7 +60,7 @@ resource "aws_iam_role_policy" "s3_policy" {
         "s3:*"
       ],
       "Resource": [
-        "arn:aws:s3:::vegify-dropbox-archive/*"
+        "arn:aws:s3:::${var.aws_config.bucket}/*"
       ]
     }
   ]
@@ -54,7 +78,7 @@ resource "aws_instance" "ec2_instance" {
   instance_type = "t2.micro"
 
   root_block_device {
-    volume_size = 3000 # 3TB
+    volume_size = var.aws_config.volume_size
   }
 
   iam_instance_profile = aws_iam_instance_profile.s3_instance_profile.name
@@ -75,7 +99,7 @@ resource "aws_instance" "ec2_instance" {
 }
 
 resource "aws_s3_bucket" "bucket" {
-  bucket = "vegify-dropbox-archive"
+  bucket = var.aws_config.bucket
 }
 
 resource "aws_s3_bucket_acl" "bucket" {
