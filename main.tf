@@ -1,78 +1,83 @@
-terraform {
-  cloud {
-    organization = "john-carmack"
-    workspaces {
-      name = "migrate-to-s3-deep-storage-for-business"
-    }
-  }
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.16"
-    }
-  }
-
-  required_version = ">= 1.2.0"
-}
-
 provider "aws" {
   region = "us-west-1"
 }
 
-resource "random_pet" "sg" {}
+resource "aws_iam_role" "s3_role" {
+  name = "S3FullAccessRole"
 
-data "aws_ami" "ubuntu" {
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  owners = ["099720109477"]
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Effect": "Allow",
+      "Sid": ""
+    }
+  ]
+}
+EOF
 }
 
-resource "aws_instance" "app_server" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.app-sg.id]
+resource "aws_iam_role_policy" "s3_policy" {
+  name = "S3FullAccessPolicy"
+  role = aws_iam_role.s3_role.id
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:*"
+      ],
+      "Resource": [
+        "arn:aws:s3:::vegify-dropbox-archive/*"
+      ]
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_instance_profile" "s3_instance_profile" {
+  name = "S3InstanceProfile"
+  role = aws_iam_role.s3_role.name
+}
+
+resource "aws_instance" "ec2_instance" {
+  ami           = "ami-0a91cd140a1fc148a" # Ubuntu Server 18.04 LTS AMI
+  instance_type = "t2.micro"
+
+  root_block_device {
+    volume_size = 3000 # 3TB
+  }
+
+  iam_instance_profile = aws_iam_instance_profile.s3_instance_profile.name
 
   user_data = <<-EOF
-              #!/bin/bash
-              apt-get update
-              apt-get install -y apache2
-              sed -i -e 's/80/8080/' /etc/apache2/ports.conf
-              echo "Hello World" > /var/www/html/index.html
-              systemctl restart apache2
-              EOF  
+                #!/bin/bash
+                apt-get update
+                apt-get install -y python3-pip
+                pip3 install awscli dropbox
+                dropbox start
+                aws s3 sync ~/Dropbox s3://vegify-dropbox-archive/
+                EOF
 
   tags = {
-    Name = var.instance_name
+    Name = "ec2-dropbox-sync"
   }
 }
 
-resource "aws_security_group" "app-sg" {
-  name = "${random_pet.sg.id}-sg"
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_s3_bucket" "bucket" {
+  bucket = "vegify-dropbox-archive"
 }
 
-# module "ec2-instance_example_volume-attachment" {
-#   source  = "terraform-aws-modules/ec2-instance/aws//examples/volume-attachment"
-#   version = "5.1.0"
-# }
+resource "aws_s3_bucket_acl" "bucket" {
+  bucket = aws_s3_bucket.bucket.id
+  acl    = "private"
+}
