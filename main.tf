@@ -62,10 +62,11 @@ resource "aws_instance" "ec2_instance" {
   user_data = <<-EOF
                 #!/bin/bash
                 apt-get update
-                apt-get install -y python3-pip
-                pip3 install awscli dropbox
-                dropbox start
-                aws s3 sync ~/Dropbox s3://vegify-dropbox-archive/
+                apt-get install -y jq
+                apt-get install -y apache2
+                sed -i -e 's/80/8080/' /etc/apache2/ports.conf
+                echo "Hello World" > /var/www/html/index.html
+                systemctl restart apache2                
                 EOF
 
   tags = {
