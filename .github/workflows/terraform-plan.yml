@@ -9,7 +9,7 @@ env:
   TF_CLOUD_ORGANIZATION: "${{ vars.TF_CLOUD_ORGANIZATION }}"
   TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
   TF_WORKSPACE: "${{ vars.TF_WORKSPACE }}"
-  TF_VAR_aws_config: '{"region": "us-west-1", "bucket": "vegify-dropbox-archive", "volume_size": 250 }'
+  TF_VAR_aws_config: '{"region": "${{ vars.TF_VAR_AWS_REGION }}", "bucket": "${{ vars.TF_VAR_AWS_BUCKET }}", "volume_size": "${{ vars.TF_VAR_AWS_VOLUME_SIZE }}" }'
   CONFIG_DIRECTORY: "./"
 
 jobs:
