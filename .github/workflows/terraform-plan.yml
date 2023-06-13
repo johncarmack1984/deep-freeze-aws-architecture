@@ -11,8 +11,8 @@ env:
   TF_WORKSPACE: "${{ vars.TF_WORKSPACE }}"
   TF_VAR_aws_config: '{"region": "${{ vars.TF_VAR_AWS_REGION }}", "bucket": "${{ vars.TF_VAR_AWS_BUCKET }}", "volume_size": "${{ vars.TF_VAR_AWS_VOLUME_SIZE }}" }'
   TF_VAR_key_pair: "${{ vars.TF_VAR_KEY_PAIR }}"
-  TF_VAR_ami_id: "${{ vars.TF_VAR_AMI_ID }}"
-  TF_VAR_ami_name: "${{ vars.TF_VAR_AMI_NAME }}"
+  TF_VAR_ami_id: "ami-0f8e81a3da6e2510a"
+  TF_VAR_ami_name: "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
   CONFIG_DIRECTORY: "./"
 
 jobs:
