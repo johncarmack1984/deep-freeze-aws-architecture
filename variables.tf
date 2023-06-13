@@ -12,8 +12,10 @@ variable "key_pair" {
   })
 }
 variable "ami_name" {
-  type = string
+  type    = string
+  default = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
 }
 variable "ami_id" {
-  type = string
+  type    = string
+  default = "ami-0f8e81a3da6e2510a"
 }

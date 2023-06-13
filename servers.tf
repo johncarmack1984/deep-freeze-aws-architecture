@@ -4,7 +4,7 @@ resource "aws_instance" "test-ec2-instance" {
   key_name        = var.key_pair.name
   security_groups = ["${aws_security_group.ingress-all-test.id}"]
   tags = {
-    Name = var.ami_name
+    Name = "ami-0f8e81a3da6e2510a"
   }
   subnet_id = aws_subnet.subnet-uno.id
 }
