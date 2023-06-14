@@ -1,4 +1,4 @@
-resource "aws_instance" "test-ec2-instance" {
+resource "aws_instance" "dropvault" {
   ami             = var.ami_id
   instance_type   = "t2.micro"
   key_name        = var.key_pair.name
