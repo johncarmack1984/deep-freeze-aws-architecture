@@ -71,13 +71,6 @@ echo "Current account:"
 
 # echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display'
 
-RES=$(curl -s -X POST https://api.dropboxapi.com/2/team/team_folder/list \
-    --header "Authorization: Bearer $ACCESS_TOKEN" \
-    --header "Content-Type: application/json" \
-    --data "{\"limit\":100}")
-
-echo $RES | jq -r '.team_folders[].team_folder_id'
-
 # while [ $(echo $RES | jq -r '.has_more') == "true" ]
 # do
 #     echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display'
@@ -89,6 +82,18 @@ echo $RES | jq -r '.team_folders[].team_folder_id'
 #     echo "Has More is..."
 #     echo $RES | jq '.has_more'
 # done
+
+RES=$(curl -s -X POST https://api.dropboxapi.com/2/team/team_folder/list \
+    --header "Authorization: Bearer $ACCESS_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data "{\"limit\":100}")
+
+TEAM_FOLDER_ID=$(echo $RES | jq -r '.team_folders[].team_folder_id')
+
+curl -X POST https://api.dropboxapi.com/2/team/team_folder/get_info \
+    --header "Authorization: Bearer $ACCESS_TOKEN" \
+    --header "Content-Type: application/json" \
+    --data "{\"team_folder_ids\": [\"$TEAM_FOLDER_ID\"]}"
 
 # tar -czvf <folder-name>.tgz <folder-name>
 # aws s3 cp brand.tgz s3://vegify-dropbox-archive --storage-class "DEEP_ARCHIVE"
