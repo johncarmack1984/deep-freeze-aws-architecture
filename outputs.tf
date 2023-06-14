@@ -17,3 +17,7 @@ output "ssh_command" {
   description = "Command to use to SSH to the instance"
   value       = "ssh -i <path-to-private-ssh-key> ubuntu@${aws_instance.dropvault.public_dns}"
 }
+
+output "web-address" {
+  value = "${aws_instance.dropvault.public_dns}:8080"
+}
