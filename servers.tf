@@ -8,7 +8,7 @@ resource "aws_instance" "dropvault" {
   user_data = <<-EOF
               #!/bin/bash
               apt-get update
-              apt-get install -y w3m xdg-tools mailcap www-browser
+              apt-get install -y w3m xdg-tools xdg-utils mailcap www-browser
               EOF
 
   # provisioner "file" {
@@ -19,10 +19,10 @@ resource "aws_instance" "dropvault" {
   #   source      = "~/.aws/credentials"
   #   destination = "/home/ubuntu/.aws/credentials"
   # }
-  provisioner "file" {
-    source      = "pipeline.sh"
-    destination = "/home/ubuntu/pipeline.sh"
-  }
+  # provisioner "file" {
+  #   source      = "pipeline.sh"
+  #   destination = "/home/ubuntu/pipeline.sh"
+  # }
 
   root_block_device {
     volume_size = var.aws_config.volume_size

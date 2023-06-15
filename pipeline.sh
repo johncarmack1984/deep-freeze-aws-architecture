@@ -8,7 +8,6 @@ sed "s/APP_BASE64=.*/APP_BASE64=\"$APP_BASE64\"/g" .env > .env.tmp && mv .env.tm
 CURRENT_ACCOUNT=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current_account \
     --header "Authorization: Bearer $ACCESS_TOKEN" \
     --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
-# echo $CURRENT_ACCOUNT | jq -r '.root_info'
 CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
 
 
@@ -63,37 +62,60 @@ fi
 echo "Current account:"
 [ -z "$CURRENT_ACCOUNT" ] && echo "No account found" || echo $CURRENT_ACCOUNT
 
-# RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder \
-#   --header "Authorization: Bearer $ACCESS_TOKEN" \
+#### alternate auth method, not effective
+# RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder -u "$APP_KEY:$APP_SECRET" \
 #   --header 'Content-Type: application/json' \
-#   --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
 #   --data '{"path":"","recursive":true}')
+# echo $RES
+####
+#### alternate auth method, not effective
+# RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder \
+#   --header "Authorization: Basic $APP_BASE64" \
+#   --header 'Content-Type: application/json' \
+#   --data '{"path":"","recursive":true, "include_deleted":true}')
 
-# echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display'
+# echo $RES
+####
 
-# while [ $(echo $RES | jq -r '.has_more') == "true" ]
-# do
-#     echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display'
-#     echo $RES | jq -r '.entries[] | select(.[".tag"] == "folder") | .path_display'
-#     echo "Has More is"
-#     echo $RES | jq '.has_more'
-#     echo "Resetting..."
-#     RES=$(echo $RES | jq '.has_more = false')
-#     echo "Has More is..."
-#     echo $RES | jq '.has_more'
-# done
+add_folders_to_list() {
+    echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display' >> $filename
+}
 
-RES=$(curl -s -X POST https://api.dropboxapi.com/2/team/team_folder/list \
-    --header "Authorization: Bearer $ACCESS_TOKEN" \
-    --header "Content-Type: application/json" \
-    --data "{\"limit\":100}")
+#### functioning auth method
+RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder \
+  --header "Authorization: Bearer $ACCESS_TOKEN" \
+  --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
+  --header 'Content-Type: application/json' \
+  --data '{"path":"/vegifyapp","recursive":true, "limit":2000}')
+#####
+LENGTH=$(echo $RES | jq -r '[.entries[]]' | jq '. | length')
 
-TEAM_FOLDER_ID=$(echo $RES | jq -r '.team_folders[].team_folder_id')
+if [[ $LENGTH -gt 0 ]]
+then 
+    echo "Found $LENGTH entries"
+    filename='folders.txt'
+    cat /dev/null > $filename
+    add_folders_to_list
+    HAS_MORE=$(echo $RES | jq -r '.has_more')
+    count=0
+else
+    echo "No entries found"
+    exit 1
+fi
 
-curl -X POST https://api.dropboxapi.com/2/team/team_folder/get_info \
-    --header "Authorization: Bearer $ACCESS_TOKEN" \
-    --header "Content-Type: application/json" \
-    --data "{\"team_folder_ids\": [\"$TEAM_FOLDER_ID\"]}"
+while [ $HAS_MORE == "true" ]
+do
+    ((count++))
+    echo "Loop $count"
+    CURSOR=$(echo $RES | jq -r '.cursor')
+    RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder/continue \
+        --header "Authorization: Bearer $ACCESS_TOKEN" \
+        --header 'Content-Type: application/json' \
+        --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
+        --data "{\"cursor\": \"$CURSOR\"}")
+    add_folders_to_list
+    HAS_MORE=$(echo $RES | jq -r '.has_more')
+done
 
 # tar -czvf <folder-name>.tgz <folder-name>
 # aws s3 cp brand.tgz s3://vegify-dropbox-archive --storage-class "DEEP_ARCHIVE"
