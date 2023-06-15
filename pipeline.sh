@@ -1,4 +1,3 @@
-
 chmod +x .env
 source .env
 
@@ -59,43 +58,25 @@ then
     echo "Re-Authorized with DropBox API using OAuth2 and codeflow"
 fi
 
-echo "Current account:"
-[ -z "$CURRENT_ACCOUNT" ] && echo "No account found" || echo $CURRENT_ACCOUNT
 
-#### alternate auth method, not effective
-# RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder -u "$APP_KEY:$APP_SECRET" \
-#   --header 'Content-Type: application/json' \
-#   --data '{"path":"","recursive":true}')
-# echo $RES
-####
-#### alternate auth method, not effective
-# RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder \
-#   --header "Authorization: Basic $APP_BASE64" \
-#   --header 'Content-Type: application/json' \
-#   --data '{"path":"","recursive":true, "include_deleted":true}')
-
-# echo $RES
-####
-
-add_folders_to_list() {
-    echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display' >> $filename
-}
-
-#### functioning auth method
 RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder \
   --header "Authorization: Bearer $ACCESS_TOKEN" \
   --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
   --header 'Content-Type: application/json' \
-  --data '{"path":"/vegifyapp","recursive":true, "limit":2000}')
-#####
+  --data "{\"path\":\"$BASE_FOLDER\",\"recursive\":true, \"limit\":2000}")
 LENGTH=$(echo $RES | jq -r '[.entries[]]' | jq '. | length')
 
+add_files_to_list() {
+    echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display' >> $paths
+}
+
+paths='paths.txt'
+cat /dev/null > $paths
+
 if [[ $LENGTH -gt 0 ]]
-then 
-    echo "Found $LENGTH entries"
-    filename='folders.txt'
-    cat /dev/null > $filename
-    add_folders_to_list
+then
+    echo "Creating file list..."
+    add_files_to_list
     HAS_MORE=$(echo $RES | jq -r '.has_more')
     count=0
 else
@@ -106,17 +87,37 @@ fi
 while [ $HAS_MORE == "true" ]
 do
     ((count++))
-    echo "Loop $count"
+    echo "Loop $count"...
     CURSOR=$(echo $RES | jq -r '.cursor')
     RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder/continue \
         --header "Authorization: Bearer $ACCESS_TOKEN" \
         --header 'Content-Type: application/json' \
         --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
         --data "{\"cursor\": \"$CURSOR\"}")
-    add_folders_to_list
+    add_files_to_list
     HAS_MORE=$(echo $RES | jq -r '.has_more')
 done
 
-# tar -czvf <folder-name>.tgz <folder-name>
-# aws s3 cp brand.tgz s3://vegify-dropbox-archive --storage-class "DEEP_ARCHIVE"
-# aws s3 sync ./brand s3://vegify-dropbox-archive/brand --storage-class "DEEP_ARCHIVE"
+input=$paths
+while IFS= read -r line
+do
+    FILEPATH=$(echo "${line#*$BASE_FOLDER/}") 
+    FILEPATH=$(echo ${FILEPATH/channel/Channel})
+    if [ -z "$(aws s3 ls "s3://$S3_BUCKET/$FILEPATH")" ]; then
+        echo "S3 file not found: $FILEPATH"
+        output=$(basename "${line}")
+        echo "Downloading $output from DropBox..."
+        echo ""
+        curl -X POST https://content.dropboxapi.com/2/files/download \
+            --header "Authorization: Bearer $ACCESS_TOKEN" \
+            --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
+            --header "Dropbox-API-Arg: {\"path\":\"${line}\"}" \
+            --output "$output"
+        echo ""
+        echo "Uploading $output to S3..."
+        aws s3 cp "$output" "s3://$S3_BUCKET/$FILEPATH" --storage-class "DEEP_ARCHIVE"
+        rm "$output"
+    else
+        echo "S3 already exists: $FILEPATH"
+    fi
+done < "$input"
