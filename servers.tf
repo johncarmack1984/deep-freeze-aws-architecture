@@ -1,7 +1,7 @@
 resource "aws_instance" "dropvault" {
   ami                         = var.ami_id
-  instance_type               = "t2.micro"
-  key_name                    = var.key_pair.name
+  instance_type               = var.aws_config.instance_type
+  key_name                    = aws_key_pair.tf-key-pair.key_name
   security_groups             = ["${aws_security_group.ingress-all-test.id}"]
   vpc_security_group_ids      = ["${aws_security_group.ingress-all-test.id}"]
   associate_public_ip_address = true
@@ -10,18 +10,20 @@ resource "aws_instance" "dropvault" {
     source      = ".env"
     destination = "/home/ubuntu/.env"
     connection {
-      type = "ssh"
-      user = "ubuntu"
-      host = self.public_ip
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(tls_private_key.rsa.private_key_pem)
+      host        = self.public_ip
     }
   }
   provisioner "file" {
     source      = "pipeline.sh"
     destination = "/home/ubuntu/pipeline.sh"
     connection {
-      type = "ssh"
-      user = "ubuntu"
-      host = self.public_ip
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(tls_private_key.rsa.private_key_pem)
+      host        = self.public_ip
     }
   }
 

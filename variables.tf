@@ -1,14 +1,9 @@
 variable "aws_config" {
   type = object({
-    region      = string
-    bucket      = string
-    volume_size = number
-  })
-}
-variable "key_pair" {
-  type = object({
-    name       = string
-    public_key = string
+    region        = string
+    bucket        = string
+    volume_size   = number
+    instance_type = string
   })
 }
 variable "ami_name" {
