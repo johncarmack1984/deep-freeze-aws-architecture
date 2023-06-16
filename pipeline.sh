@@ -1,3 +1,5 @@
+set -e
+
 chmod +x .env
 source .env
 
@@ -9,20 +11,19 @@ CURRENT_ACCOUNT=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current
     --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
 CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
 
-
 if [ -z "$CURRENT_ACCOUNT" ] 
 then
     echo "No account found"
 
     echo "Initiating token request..."
-    open "https://www.dropbox.com/oauth2/authorize?response_type=code&token_access_type=offline&client_id=$APP_KEY"
+    xdg-open "https://www.dropbox.com/oauth2/authorize?client_id=$APP_KEY&token_access_type=offline&response_type=code"
 
     echo "Enter authorization code:"
     read AUTHORIZATION_CODE
     sed "s/AUTHORIZATION_CODE=.*/AUTHORIZATION_CODE=\"$AUTHORIZATION_CODE\"/g" .env > .env.tmp && mv .env.tmp .env
 
     echo "Requesting access token..."
-    ACCESS_TOKEN=$(curl https://api.dropbox.com/oauth2/token \
+    ACCESS_TOKEN=$(curl -s https://api.dropbox.com/oauth2/token \
         -d code=$AUTHORIZATION_CODE \
         -d grant_type=authorization_code \
         -d client_id=$APP_KEY \
@@ -38,7 +39,7 @@ then
         --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
     CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
 
-    echo "Authorized DropBox API using OAuth2 and codeflow"
+    if [ "null" != "$CURRENT_ACCOUNT" ]; then echo "Authorized DropBox API using OAuth2 and codeflow"; else echo "Failed to authorize DropBox API using OAuth2 and codeflow" && exit 1; fi
 elif [ $CURRENT_ACCOUNT == "null" ]
 then
     echo "Refreshing access token..."
