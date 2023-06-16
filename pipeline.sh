@@ -2,6 +2,10 @@ set -e
 
 chmod +x .env
 source .env
+export XAUTHORITY="$HOME/.Xauthority"
+
+sudo apt-get update -y
+sudo apt-get install jq xdg-utils firefox aws-cli -y
 
 APP_BASE64=$(echo -n "$APP_KEY:$APP_SECRET" | base64)
 sed "s/APP_BASE64=.*/APP_BASE64=\"$APP_BASE64\"/g" .env > .env.tmp && mv .env.tmp .env
@@ -15,8 +19,12 @@ if [ -z "$CURRENT_ACCOUNT" ]
 then
     echo "No account found"
 
-    echo "Initiating token request..."
-    xdg-open "https://www.dropbox.com/oauth2/authorize?client_id=$APP_KEY&token_access_type=offline&response_type=code"
+    echo "Initiating login..."
+    firefox "https://www.dropbox.com/"
+    read -n1 -r -p "Press any key to continue once logged in via Firefox..." key
+
+    echo "Initiating token request"
+    firefox "https://www.dropbox.com/oauth2/authorize?client_id=$APP_KEY&token_access_type=offline&response_type=code"
 
     echo "Enter authorization code:"
     read AUTHORIZATION_CODE
@@ -72,6 +80,8 @@ add_files_to_list() {
 }
 
 paths='paths.txt'
+touch paths.txt
+chmod 777 paths.txt
 cat /dev/null > $paths
 
 if [[ $LENGTH -gt 0 ]]
@@ -87,7 +97,7 @@ fi
 
 while [ $HAS_MORE == "true" ]
 do
-    ((count++))
+    count=$((count+1))
     echo "Loop $count"...
     CURSOR=$(echo $RES | jq -r '.cursor')
     RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder/continue \
