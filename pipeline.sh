@@ -21,7 +21,6 @@ then
 
     echo "Initiating login..."
     firefox "https://www.dropbox.com/"
-    read -n1 -r -p "Press any key to continue once logged in via Firefox..." key
 
     echo "Initiating token request"
     firefox "https://www.dropbox.com/oauth2/authorize?client_id=$APP_KEY&token_access_type=offline&response_type=code"
@@ -47,7 +46,11 @@ then
         --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
     CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
 
-    if [ "null" != "$CURRENT_ACCOUNT" ]; then echo "Authorized DropBox API using OAuth2 and codeflow"; else echo "Failed to authorize DropBox API using OAuth2 and codeflow" && exit 1; fi
+    if [ "null" != "$CURRENT_ACCOUNT" ]
+    then echo "Authorized DropBox API using OAuth2 and codeflow"
+    else echo "Failed to authorize DropBox API using OAuth2 and codeflow" && exit 1
+    fi
+
 elif [ $CURRENT_ACCOUNT == "null" ]
 then
     echo "Refreshing access token..."
@@ -80,16 +83,17 @@ add_files_to_list() {
 }
 
 paths='paths.txt'
-touch paths.txt
-chmod 777 paths.txt
+touch 'paths.txt'
+chmod 777 'paths.txt'
 cat /dev/null > $paths
 
 if [[ $LENGTH -gt 0 ]]
 then
+    count=1
     echo "Creating file list..."
+    echo "Query $count..."
     add_files_to_list
     HAS_MORE=$(echo $RES | jq -r '.has_more')
-    count=0
 else
     echo "No entries found"
     exit 1
@@ -98,7 +102,7 @@ fi
 while [ $HAS_MORE == "true" ]
 do
     count=$((count+1))
-    echo "Loop $count"...
+    echo "Query $count"...
     CURSOR=$(echo $RES | jq -r '.cursor')
     RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder/continue \
         --header "Authorization: Bearer $ACCESS_TOKEN" \
@@ -109,14 +113,25 @@ do
     HAS_MORE=$(echo $RES | jq -r '.has_more')
 done
 
-input=$paths
-while IFS= read -r line
-do
-    FILEPATH=$(echo "${line#*$BASE_FOLDER/}") 
-    FILEPATH=$(echo ${FILEPATH/channel/Channel})
-    if [ -z "$(aws s3 ls "s3://$S3_BUCKET/$FILEPATH")" ]; then
-        echo "S3 file not found: $FILEPATH"
-        output=$(basename "${line}")
+migrate-to-s3 () {
+    local line=$1
+    local FILEPATH=$(echo "${line#*$BASE_FOLDER/}") 
+    local FILEPATH=$(echo ${FILEPATH/channel/Channel})
+    local CHECK_S3=$(aws s3 ls "s3://$S3_BUCKET/$FILEPATH" --summarize) || true
+    local EXISTS_ON_S3=$(echo "$CHECK_S3" | grep "Total Objects: " | awk -F "Total Objects: " '{print $2}')
+    local SIZE_ON_S3=$(echo "$CHECK_S3" | grep "Total Size: " | awk -F "Total Size: " '{print $2}')
+    local CHECK_DB=$(curl -s -X POST https://api.dropboxapi.com/2/files/get_metadata \
+        --header "Authorization: Bearer $ACCESS_TOKEN" \
+        --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
+        --header "Content-Type: application/json" \
+        --data "{\"include_deleted\":false,\"include_has_explicit_shared_members\":false,\"include_media_info\":false,\"path\":\"$line\"}")
+    local SIZE_ON_DB=$(echo "$CHECK_DB" | jq -r '.size')
+    if [[ $EXISTS_ON_S3 == 1 && $SIZE_ON_S3 -eq $SIZE_ON_DB ]]; then 
+        echo "S3 already exists: $FILEPATH"
+        continue
+    else 
+        echo "S3 needs to sync: $FILEPATH"; 
+        local output=$(basename "${line}")
         echo "Downloading $output from DropBox..."
         echo ""
         curl -X POST https://content.dropboxapi.com/2/files/download \
@@ -128,7 +143,9 @@ do
         echo "Uploading $output to S3..."
         aws s3 cp "$output" "s3://$S3_BUCKET/$FILEPATH" --storage-class "DEEP_ARCHIVE"
         rm "$output"
-    else
-        echo "S3 already exists: $FILEPATH"
     fi
-done < "$input"
+}
+
+input="paths.txt"
+while IFS= read -r line; do migrate-to-s3 "$line" & done < "$input"
+wait
