@@ -4,12 +4,6 @@ chmod +x .env
 source .env
 export XAUTHORITY="$HOME/.Xauthority"
 
-sudo apt-get update -y
-sudo apt-get install jq xdg-utils firefox aws-cli -y
-
-APP_BASE64=$(echo -n "$APP_KEY:$APP_SECRET" | base64)
-sed "s/APP_BASE64=.*/APP_BASE64=\"$APP_BASE64\"/g" .env > .env.tmp && mv .env.tmp .env
-
 CURRENT_ACCOUNT=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current_account \
     --header "Authorization: Bearer $ACCESS_TOKEN" \
     --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
@@ -46,11 +40,8 @@ then
         --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
     CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
 
-    if [ "null" != "$CURRENT_ACCOUNT" ]
-    then echo "Authorized DropBox API using OAuth2 and codeflow"
-    else echo "Failed to authorize DropBox API using OAuth2 and codeflow" && exit 1
-    fi
-
+    if [ "null" != "$CURRENT_ACCOUNT" ]; then echo "Authorized DropBox API using OAuth2 and codeflow"
+    else echo "Failed to authorize DropBox API using OAuth2 and codeflow" && exit 1; fi
 elif [ $CURRENT_ACCOUNT == "null" ]
 then
     echo "Refreshing access token..."

@@ -12,7 +12,7 @@ resource "aws_instance" "dropvault" {
     connection {
       type        = "ssh"
       user        = "ubuntu"
-      private_key = file(tls_private_key.rsa.private_key_pem)
+      private_key = file(local_file.tf-key.filename)
       host        = self.public_ip
     }
   }
@@ -22,7 +22,7 @@ resource "aws_instance" "dropvault" {
     connection {
       type        = "ssh"
       user        = "ubuntu"
-      private_key = file(tls_private_key.rsa.private_key_pem)
+      private_key = file(local_file.tf-key.filename)
       host        = self.public_ip
     }
   }
