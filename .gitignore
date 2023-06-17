@@ -1,4 +1,5 @@
 # Local .terraform directories
+.terraform
 **/.terraform/*
 
 # .tfstate files
@@ -38,3 +39,5 @@ terraform.rc
 .dev
 paths.txt
 johncarmack@me.com*
+temp
+temp/**/*
