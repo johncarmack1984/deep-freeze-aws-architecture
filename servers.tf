@@ -17,6 +17,16 @@ resource "aws_instance" "dropvault" {
     }
   }
   provisioner "file" {
+    source      = "prepare.sh"
+    destination = "/home/ubuntu/prepare.sh"
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(local_file.tf-key.filename)
+      host        = self.public_ip
+    }
+  }
+  provisioner "file" {
     source      = "pipeline.sh"
     destination = "/home/ubuntu/pipeline.sh"
     connection {
