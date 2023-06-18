@@ -41,3 +41,5 @@ paths.txt
 johncarmack@me.com*
 temp
 temp/**/*
+logs
+logs/**/*
