@@ -123,8 +123,7 @@ get_paths () {
 # sed -i '/^$/d' $paths
 
 hold-for-thread () {
-    # JOBS=$(jobs | wc -l)
-    # printf "🧵 Jobs: $JOBS\n"
+    jobs | wc -l | xargs echo "🧵 Jobs: $1"
     while [ $(jobs | wc -l) -ge $MAX_THREADS ]; do sleep 1; done
 }
 
