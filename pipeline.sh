@@ -63,8 +63,6 @@ check_account () {
     fi
 }
 
-check_account
-
 add_files_to_list() {
     printf $(echo $RES | jq -r '[.entries[]]' | jq '. | length')
     printf " files found\n" 
@@ -72,7 +70,6 @@ add_files_to_list() {
 }
 
 get_paths () {
-    paths='paths.txt'
     touch $paths
     chmod 777 $paths
     cat /dev/null > $paths
@@ -114,8 +111,6 @@ get_paths () {
     done
 }
 
-[ ! -f $paths ] && get_paths
-
 hold-for-thread () {
     printf -v MAX_THREADS "%d" "$(( $(ulimit -s) / 150 ))"
     echo "🖥️ Max threads: $MAX_THREADS"
@@ -150,8 +145,6 @@ migrate-to-s3 () {
         --header "Content-Type: application/json" \
         --data "{\"include_deleted\":false,\"include_has_explicit_shared_members\":false,\"include_media_info\":false,\"path\":\"$line\"}") || echo -e "❌ Error checking DB $line \n" 2>&1 | tee -a logs/errors.log && true
     local SIZE_ON_DB=$(echo "$CHECK_DB" | jq -r '.size')
-    # echo -e "** $output **\nSize on S3: $SIZE_ON_S3\nSize on DB: $SIZE_ON_DB"
-    # echo "CHECK_DB: $CHECK_DB"
     # line below needs controls for: _
     if [[ $EXISTS_ON_S3 == 1 && $SIZE_ON_S3 -eq $SIZE_ON_DB ]]; then 
         echo -e "✅ Already S3: $line" 2>&1 | tee -a logs/info.log && remove-from-list "$line";
@@ -173,26 +166,31 @@ migrate-to-s3 () {
     return;
 }
 
-start=$(wc -l < $paths)
-echo "🗄️ Total of $start files to migrate (this may take a while)"
-mkdir -p temp
-echo "🗃️ Performing migration..."
+main () {
+    check_account
+    paths='paths.txt'
+    [ ! -f $paths ] && get_paths
 
-input=$paths
-while IFS= read -r line; do 
-    current=$(wc -l < $paths | xargs) 
-    printf "🗄️  $current files ($((100 * $current / $start))%% remaining)\n"
-    # echo -e "⏳ Waiting for thread to migrate $line..."
-    # hold-for-thread
-    echo -e "📂 Migrating $line"
-    migrate-to-s3 "$line" 
-    # migrate-to-s3 "$line" & 
-done < "$input"
-wait
+    start=$(wc -l < $paths)
+    echo "🗄️ Total of $start files to migrate (this may take a while)"
+    mkdir -p temp
+    echo "🗃️ Performing migration..."
 
-rm -rf temp
+    input=$paths
+    while IFS= read -r line; do 
+        current=$(wc -l < $paths | xargs) 
+        printf "🗄️  $current files ($((100 * $current / $start))%% remaining)\n"
+        echo -e "📂 Migrating $line"
+        migrate-to-s3 "$line" # & 
+    done < "$input"
+    wait
 
-echo "✅✅✅ Migration complete."
+    rm -rf temp
+
+    echo "✅✅✅ Migration complete."
+}
+
+main
 
 trap finish EXIT
 rm -rf temp
