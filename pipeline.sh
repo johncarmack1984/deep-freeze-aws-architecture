@@ -13,10 +13,10 @@ login () {
     echo "⚠️ No account found"
 
     echo "🔒 Initiating login..."
-    firefox "https://www.dropbox.com/"
+    xdg-open "https://www.dropbox.com/"
 
     echo "🔐 Initiating token request"
-    firefox "https://www.dropbox.com/oauth2/authorize?client_id=$APP_KEY&token_access_type=offline&response_type=code"
+    xdg-open "https://www.dropbox.com/oauth2/authorize?client_id=$APP_KEY&token_access_type=offline&response_type=code"
 
     echo "🪪 Enter authorization code:"
     read AUTHORIZATION_CODE
@@ -57,7 +57,7 @@ check_account () {
         TEAM_MEMBER_ID=$(echo $RES | jq -r '.team_member_id')
         echo "🔓 Authorized DropBox API using OAuth2 and codeflow"
         echo "👤 Logged in as $CURRENT_USER"
-    else echo "❌ $RES" && exit 1; fi
+    else echo "❌ $RES"; fi
     if [ -z "$CURRENT_ACCOUNT" ]; then login && check_account
     elif [ $CURRENT_ACCOUNT == "null" ]; then refresh_token && check_account
     fi
@@ -65,20 +65,14 @@ check_account () {
 
 check_account
 
-printf -v MAX_THREADS "%d" "$(( $(ulimit -s) / 150 ))"
-# printf -v MAX_THREADS "%d" "$(( 2 ))"
-echo "🖥️ Max threads: $MAX_THREADS"
-
-paths='paths.txt'
-
 add_files_to_list() {
     printf $(echo $RES | jq -r '[.entries[]]' | jq '. | length')
     printf " files found\n" 
     echo $RES | jq -r '.entries[] | select(.[".tag"] == "file") | .path_display' >> $paths || echo -e "❌ Error adding files to list \n❌ Response from server: $RES" 2>&1 | tee -a logs/errors.log && true
 }
 
-
 get_paths () {
+    paths='paths.txt'
     touch $paths
     chmod 777 $paths
     cat /dev/null > $paths
@@ -106,8 +100,7 @@ get_paths () {
         exit 1
     fi
 
-    while [ $HAS_MORE == "true" ]
-    do
+    while [ $HAS_MORE == "true" ]; do
         count=$((count+1))
         printf "📦 Query $count"...
         CURSOR=$(echo $RES | jq -r '.cursor')
@@ -122,11 +115,10 @@ get_paths () {
 }
 
 [ ! -f $paths ] && get_paths
-# get_paths
-
-# sed -i '/^$/d' $paths
 
 hold-for-thread () {
+    printf -v MAX_THREADS "%d" "$(( $(ulimit -s) / 150 ))"
+    echo "🖥️ Max threads: $MAX_THREADS"
     jobs | wc -l | xargs echo "🧵 Jobs: $1"
     while [ $(jobs | wc -l) -ge $MAX_THREADS ]; do sleep 1; done
 }
@@ -151,7 +143,7 @@ migrate-to-s3 () {
     local SIZE_ON_S3=$(echo "$CHECK_S3" | grep "Total Size: " | awk -F "Total Size: " '{print $2}')
     # echo -e "⏳ Waiting for thread to check $output on DropBox..."
     # hold-for-thread
-    echo -e "🗳️ Checking DB $line"
+    echo -e "🗳️  Checking DB $line"
     local CHECK_DB=$(curl -s -X POST https://api.dropboxapi.com/2/files/get_metadata \
         --header "Authorization: Bearer $ACCESS_TOKEN" \
         --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
@@ -181,13 +173,15 @@ migrate-to-s3 () {
     return;
 }
 
-
-echo "🗄️ Total of $(wc -l < $paths) files to migrate (this may take a while)"
+start=$(wc -l < $paths)
+echo "🗄️ Total of $start files to migrate (this may take a while)"
 mkdir -p temp
 echo "🗃️ Performing migration..."
 
 input=$paths
 while IFS= read -r line; do 
+    current=$(wc -l < $paths | xargs) 
+    printf "🗄️  $current files ($((100 * $current / $start))%% remaining)\n"
     # echo -e "⏳ Waiting for thread to migrate $line..."
     # hold-for-thread
     echo -e "📂 Migrating $line"
