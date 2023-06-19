@@ -4,13 +4,12 @@ chmod +x .env
 source .env
 export XAUTHORITY="$HOME/.Xauthority"
 
-CURRENT_ACCOUNT=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current_account \
-    --header "Authorization: Bearer $ACCESS_TOKEN" \
-    --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
-CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
+setenv() {
+    key=$1; value=$2
+    sed "s/$key=.*/$key=\"$value\"/g" .env > .env.tmp && mv .env.tmp .env
+}
 
-if [ -z "$CURRENT_ACCOUNT" ] 
-then
+login () {
     echo "⚠️ No account found"
 
     echo "🔒 Initiating login..."
@@ -21,7 +20,7 @@ then
 
     echo "🪪 Enter authorization code:"
     read AUTHORIZATION_CODE
-    sed "s/AUTHORIZATION_CODE=.*/AUTHORIZATION_CODE=\"$AUTHORIZATION_CODE\"/g" .env > .env.tmp && mv .env.tmp .env
+    setenv "AUTHORIZATION_CODE" "$AUTHORIZATION_CODE"
 
     echo "🔐 Requesting access token..."
     ACCESS_TOKEN=$(curl -s https://api.dropbox.com/oauth2/token \
@@ -31,19 +30,11 @@ then
         -d client_secret=$APP_SECRET)
     REFRESH_TOKEN=$(echo $ACCESS_TOKEN | jq -r '.refresh_token')
     ACCESS_TOKEN=$(echo $ACCESS_TOKEN | jq -r '.access_token')
-    sed "s/REFRESH_TOKEN=.*/REFRESH_TOKEN=\"$REFRESH_TOKEN\"/g" .env > .env.tmp && mv .env.tmp .env
-    sed "s/ACCESS_TOKEN=.*/ACCESS_TOKEN=\"$ACCESS_TOKEN\"/g" .env > .env.tmp && mv .env.tmp .env
+    setenv "REFRESH_TOKEN" "$REFRESH_TOKEN"
+    setenv "ACCESS_TOKEN" "$ACCESS_TOKEN"
+}
 
-    echo "🪪 Requesting team member id..."
-    CURRENT_ACCOUNT=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current_account \
-        --header "Authorization: Bearer $ACCESS_TOKEN" \
-        --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
-    CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
-
-    if [ "null" != "$CURRENT_ACCOUNT" ]; then echo "🔓 Authorized DropBox API using OAuth2 and codeflow"
-    else echo "❌ Failed to authorize DropBox API using OAuth2 and codeflow" && exit 1; fi
-elif [ $CURRENT_ACCOUNT == "null" ]
-then
+refresh_token () {
     echo "🔐 Refreshing access token..."
     ACCESS_TOKEN=$(curl -s https://api.dropbox.com/oauth2/token \
         -d refresh_token=$REFRESH_TOKEN \
@@ -51,18 +42,31 @@ then
         -d client_id=$APP_KEY \
         -d client_secret=$APP_SECRET)
     ACCESS_TOKEN=$(echo $ACCESS_TOKEN | jq -r '.access_token')
-    sed "s/ACCESS_TOKEN=.*/ACCESS_TOKEN=\"$ACCESS_TOKEN\"/g" .env > .env.tmp && mv .env.tmp .env
+    setenv "ACCESS_TOKEN" "$ACCESS_TOKEN"
+}
 
-    echo "🪪 Requesting team member id..."
-    CURRENT_ACCOUNT=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current_account \
+check_account () {
+    echo "🪪 Checking account..."
+    local RES=$(curl -s -X POST https://api.dropboxapi.com/2/users/get_current_account \
         --header "Authorization: Bearer $ACCESS_TOKEN" \
         --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID")
-    CURRENT_ACCOUNT=$(echo $CURRENT_ACCOUNT | jq -r '.account_id')
-    echo "🔓 Re-Authorized with DropBox API using OAuth2 and codeflow"
-fi
+    error=$(echo $RES | jq -r '.error')
+    if [ "$error" == "null" ]; then 
+        CURRENT_USER=$(echo $RES | jq -r '.email')
+        CURRENT_ACCOUNT=$(echo $RES | jq -r '.account_id')
+        TEAM_MEMBER_ID=$(echo $RES | jq -r '.team_member_id')
+        echo "🔓 Authorized DropBox API using OAuth2 and codeflow"
+        echo "👤 Logged in as $CURRENT_USER"
+    else echo "❌ $RES" && exit 1; fi
+    if [ -z "$CURRENT_ACCOUNT" ]; then login && check_account
+    elif [ $CURRENT_ACCOUNT == "null" ]; then refresh_token && check_account
+    fi
+}
 
-# printf -v MAX_THREADS "%d" "$(( $(ulimit -s) / 150 ))"
-printf -v MAX_THREADS "%d" "$(( 2 ))"
+check_account
+
+printf -v MAX_THREADS "%d" "$(( $(ulimit -s) / 150 ))"
+# printf -v MAX_THREADS "%d" "$(( 2 ))"
 echo "🖥️ Max threads: $MAX_THREADS"
 
 paths='paths.txt'
@@ -80,7 +84,7 @@ get_paths () {
     cat /dev/null > $paths
     rm -rf temp
     rm -rf logs
-    mkdir logs
+    mkdir -p logs
 
     RES=$(curl -s -X POST https://api.dropboxapi.com/2/files/list_folder \
         --header "Authorization: Bearer $ACCESS_TOKEN" \
@@ -155,33 +159,28 @@ migrate-to-s3 () {
         --data "{\"include_deleted\":false,\"include_has_explicit_shared_members\":false,\"include_media_info\":false,\"path\":\"$line\"}") || echo -e "❌ Error checking DB $line \n" 2>&1 | tee -a logs/errors.log && true
     local SIZE_ON_DB=$(echo "$CHECK_DB" | jq -r '.size')
     # echo -e "** $output **\nSize on S3: $SIZE_ON_S3\nSize on DB: $SIZE_ON_DB"
-    ## line below needs controls for: _
+    # echo "CHECK_DB: $CHECK_DB"
+    # line below needs controls for: _
     if [[ $EXISTS_ON_S3 == 1 && $SIZE_ON_S3 -eq $SIZE_ON_DB ]]; then 
-        echo -e "✅ Already S3: $line" 2>&1 | tee -a logs/info.log;
-        remove-from-list "$line";
+        echo -e "✅ Already S3: $line" 2>&1 | tee -a logs/info.log && remove-from-list "$line";
     else 
-        echo -e "🔄 S3 needs to sync: $line \n"; 
-        # echo -e "⏳ Waiting for thread to download $output... \n"
-        # hold-for-thread
-        echo -e "⬇️ Downloading from DropBox $line \n"
+        echo -e "🔄 S3 needs to sync: $line"; 
+        echo -e "⬇️ Downloading from DropBox $line"
         curl -X POST https://content.dropboxapi.com/2/files/download \
             --header "Authorization: Bearer $ACCESS_TOKEN" \
             --header "Dropbox-API-Select-Admin: $TEAM_MEMBER_ID" \
             --header "Dropbox-API-Arg: {\"path\":\"${line}\"}" \
-            --output "./temp/$output" || echo -e "❌ Error downloading: $line \n" 2>&1 | tee -a logs/errors.log && true
+            --output "./temp/$output" || echo -e "❌ Error downloading: $line \n" 2>&1 | tee -a logs/errors.log && exit 1
         if [[ $EXISTS_ON_S3 == 1 && $SIZE_ON_S3 -ne $SIZE_ON_DB ]]; then 
-            # echo -e "⏳ Waiting for thread to rm $output from S3 \n";
-            # hold-for-thread
             echo -e "🗑️ Removing $output from S3 \n";
-            aws s3 rm "$S3_PATH" || echo -e "❌ Error removing from S3: $line" 2>&1 | tee -a logs/errors.log && true
+            aws s3 rm "$S3_PATH" || echo -e "❌ Error removing from S3: $line" 2>&1 | tee -a logs/errors.log
         fi
-        # echo -e "⏳ Waiting for thread to upload $output... \n"
-        # hold-for-thread
-        echo -e "⬆️ Uploading to S3 $line \n"
-        aws s3 mv "./temp/$output" "$S3_PATH" --storage-class "DEEP_ARCHIVE" && echo -e "✅ Successfully migrated $line" 2>&1 | tee -a logs/info.log && remove-from-list "$line"; || echo -e "❌ Error moving to S3: $line \n" > logs/errors.log && true
+        echo -e "⬆️ Uploading to S3 $line"
+        aws s3 mv "./temp/$output" "$S3_PATH" --storage-class "DEEP_ARCHIVE" && echo -e "✅ Successfully migrated $line" 2>&1 | tee -a logs/info.log && remove-from-list "$line" || echo -e "❌ Error moving to S3: $line \n" > logs/errors.log && true
     fi
     return;
 }
+
 
 echo "🗄️ Total of $(wc -l < $paths) files to migrate (this may take a while)"
 mkdir -p temp
