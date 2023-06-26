@@ -1,19 +1,10 @@
 sudo apt-get update -y
-sudo apt-get install jq firefox xdg-utils awscli -y
-
-chmod +x .env
-source .env
-export XAUTHORITY="$HOME/.Xauthority"
-
-sed -i 's/#X11Forwarding no/X11Forwarding yes/g' /etc/ssh/sshd_config
-sed -i 's/#X11DisplayOffset 10/X11DisplayOffset 10/g' /etc/ssh/sshd_config
-sed -i 's/#X11UseLocalhost yes/X11UseLocalhost no/g' /etc/ssh/sshd_config
-
-sudo systemctl restart sshd
-
+sudo apt install pkg-config openssl libssl-dev awscli build-essential -y 
 sudo apt-get upgrade -y
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh              
+source $HOME/.cargo/env
+cd deep-freeze
+cargo build --release
+sudo mv target/release/deep-freeze /usr/local/bin
+sudo chmod +x /usr/local/bin/deep-freeze
 
-aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-
-firefox "https://www.dropbox.com/"

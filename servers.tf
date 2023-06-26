@@ -6,6 +6,10 @@ resource "aws_instance" "dropvault" {
   vpc_security_group_ids      = ["${aws_security_group.ingress-all-test.id}"]
   associate_public_ip_address = true
 
+  credit_specification {
+    cpu_credits = "unlimited"
+  }
+
   provisioner "file" {
     source      = ".env"
     destination = "/home/ubuntu/.env"
@@ -20,19 +24,10 @@ resource "aws_instance" "dropvault" {
     source      = "prepare.sh"
     destination = "/home/ubuntu/prepare.sh"
     connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file(local_file.tf-key.filename)
-      host        = self.public_ip
-    }
-  }
-  provisioner "file" {
-    source      = "pipeline.sh"
-    destination = "/home/ubuntu/pipeline.sh"
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file(local_file.tf-key.filename)
+      type = "ssh"
+      user = "ubuntu"
+      # private_key = file(local_file.tf-key.filename)
+      private_key = file("johncarmack@me.com")
       host        = self.public_ip
     }
   }

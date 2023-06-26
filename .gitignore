@@ -37,7 +37,7 @@ terraform.rc
 
 .env
 .dev
-paths.txt
+paths*.txt
 johncarmack@me.com*
 temp
 temp/**/*
