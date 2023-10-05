@@ -1,21 +1,20 @@
-# deepbox
+# Deep Freeze AWS Infrastructure
 
-Migrate old folders from Dropbox to S3 Glacier Deep Archive using Terraform.
+Welcome to the AWS infrastructure repository for [Deep Freeze](https://github.com/johncarmack1984/deep-freeze)!
 
-Gotten as far as building the EC2 instance, and I have the S3 CLI commands ready. Just putting together the pieces now.
+Originally, this repository housed a bash script designed for migrating DropBox files & folders to S3 deep storage. However, as the need for a more robust and stable solution grew, it evolved into a Rust project named "Deep Freeze." This project offers a solidified version of our repository's initial purpose.
 
-For anyone who wants a jump start, I'm using the following commands to get the files from Dropbox to S3; I'm using the AWS CLI on the EC2 instance to do this, and there are 16TB of files, so I'm trying to use the Deep Archive storage class to keep costs down. I'm also using the Dropbox CLI to get the files from Dropbox to the EC2 instance, but only figured out how to download the WHOLE Dropbox at once, which is overkill, I want only select folders and will investigate that tomorrow.
+Now, you'll find Terraform modules here, tailor-made for setting up the infrastructure needed for "Deep Freeze" on AWS.
 
-Dropbox fetch:
+## Quick Links
+- [Deep Freeze Main Repository](https://github.com/johncarmack1984/deep-freeze)
 
-```
-cd ~ && wget -O - "https://www.dropbox.com/download?plat=lnx.x86_64" | tar xzf -
-~/.dropbox-dist/dropboxd
-```
+## Getting Started
 
-Take a folder and tar it up, then upload to S3:
+_For detailed instructions on how to use these Terraform modules and to set up your AWS infrastructure for Deep Freeze, please refer to our [documentation](link-to-documentation)._ 
 
-```
-tar -czvf <folder-name>.tgz <folder-name>
-aws s3 sync <folder-name>.tgz s3://<bucket-name> --storage-class "DEEP_ARCHIVE"
-```
+## Feedback & Contributions
+
+Your feedback is valuable to us! If you have suggestions or encounter any issues, please don't hesitate to raise an issue. Contributions to improve or extend the modules are always appreciated.
+
+Thank you for being part of our journey! 🚀
